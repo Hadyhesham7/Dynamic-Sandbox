@@ -117,7 +117,11 @@ def _pipeline_key(csv_col: str) -> str:
 # Training
 # ─────────────────────────────────────────────────────────────────────────────
 
-def train(csv_path: str = "Full Dataset/final_dataset_with_all_features_v3.1.csv") -> dict:
+_URLLLL_DIR = Path(__file__).parent.parent
+_DEFAULT_CSV = str(_URLLLL_DIR / "Full Dataset" / "final_dataset_with_all_features_v3.1.csv")
+
+
+def train(csv_path: str = _DEFAULT_CSV) -> dict:
     """
     Train XGBoost classifier on URL-level features only.
 

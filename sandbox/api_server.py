@@ -39,20 +39,63 @@ from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 
 # ─── Configuration ──────────────────────────────────────────────────────────
+from dotenv import load_dotenv
+# Load .env file from the project root if it exists
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 API_KEY: str = os.environ.get("KNOWHOW_API_KEY", "knowhow-default-dev-key-change-me")
-UPLOAD_DIR: Path = Path(os.environ.get("KNOWHOW_UPLOAD_DIR", "./uploads"))
-REPORT_DIR: Path = Path(os.environ.get("KNOWHOW_REPORT_DIR", "./reports"))
 ANALYSIS_TIMEOUT: int = int(os.environ.get("KNOWHOW_TIMEOUT", "300"))  # 5 min
 MAX_CONCURRENT: int = int(os.environ.get("KNOWHOW_MAX_CONCURRENT", "3"))
 
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-REPORT_DIR.mkdir(parents=True, exist_ok=True)
-
 # ─── Path setup for orchestrator import ─────────────────────────────────────
+# All paths resolve relative to THIS file's location, NOT the CWD.
+# This guarantees correct behavior regardless of where uvicorn is launched.
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(PROJECT_ROOT / "URLLLL"))
+
+# ─── Runtime directories (resolved from project root) ──────────────────────
+UPLOAD_DIR: Path = Path(os.environ.get("KNOWHOW_UPLOAD_DIR", str(PROJECT_ROOT / "uploads")))
+REPORT_DIR: Path = Path(os.environ.get("KNOWHOW_REPORT_DIR", str(SCRIPT_DIR / "reports")))
+
+
+def _init_runtime_dirs():
+    """
+    Create all runtime directories that .gitignore excludes.
+    Called on module load AND on startup to guarantee they exist.
+    These directories are NOT in the git repo (excluded by .gitignore)
+    so they must be created at runtime.
+    """
+    dirs = [
+        # API Server directories
+        UPLOAD_DIR,
+        REPORT_DIR,
+        # Sandbox report structure
+        SCRIPT_DIR / "reports",
+        SCRIPT_DIR / "reports" / "raw",
+        SCRIPT_DIR / "reports" / "artifacts",
+        SCRIPT_DIR / "reports" / "artifacts" / "dropped_files",
+        SCRIPT_DIR / "reports" / "artifacts" / "memory_dumps",
+        SCRIPT_DIR / "reports" / "artifacts" / "network_capture",
+        SCRIPT_DIR / "reports" / "artifacts" / "screenshots",
+        SCRIPT_DIR / "reports" / "artifacts" / "extracted",
+        SCRIPT_DIR / "reports" / "artifacts" / "extracted" / "archive_contents",
+        SCRIPT_DIR / "reports" / "artifacts" / "extracted" / "ole_objects",
+        SCRIPT_DIR / "reports" / "artifacts" / "email_extracted",
+        SCRIPT_DIR / "reports" / "artifacts" / "downloads",
+        # URL Pipeline directories
+        PROJECT_ROOT / "URLLLL" / "screenshots",
+        PROJECT_ROOT / "URLLLL" / "phishing_pipeline" / "data",
+        PROJECT_ROOT / "URLLLL" / "phishing_pipeline" / "models",
+        PROJECT_ROOT / "screenshots",
+    ]
+    for d in dirs:
+        d.mkdir(parents=True, exist_ok=True)
+
+
+# Create dirs immediately on import
+_init_runtime_dirs()
 
 # ─── Job Store (in-memory for single-server; swap to Redis for HA) ──────────
 _jobs: dict[str, dict] = {}
@@ -326,7 +369,10 @@ async def get_report(job_id: str, format: str = "json", x_api_key: str = Header(
 
 @app.on_event("startup")
 async def startup():
+    # Re-ensure directories exist (belt and suspenders)
+    _init_runtime_dirs()
     print(f"[API] KNOWHOW Sandbox API starting...")
+    print(f"[API] Project root:  {PROJECT_ROOT}")
     print(f"[API] Upload dir:    {UPLOAD_DIR.resolve()}")
     print(f"[API] Report dir:    {REPORT_DIR.resolve()}")
     print(f"[API] Timeout:       {ANALYSIS_TIMEOUT}s")
@@ -351,4 +397,3 @@ if __name__ == "__main__":
         reload=False,
         workers=1,  # Single worker; concurrency via ProcessPoolExecutor
     )
-#test changes

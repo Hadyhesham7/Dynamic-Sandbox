@@ -34,7 +34,11 @@ def _load_lstm():
     if _lstm_model is not None:
         return _lstm_available
 
-    model_dir = os.path.join(SCRIPT_DIR, "..", "old", "output")
+    # Primary: look in <project_root>/models/ (standard deployment location)
+    model_dir = os.path.join(SCRIPT_DIR, "..", "models")
+    # Fallback: legacy location during development
+    if not os.path.isdir(model_dir):
+        model_dir = os.path.join(SCRIPT_DIR, "..", "old", "output")
     model_path = os.path.join(model_dir, "malware_lstm_model.pt")
     maps_path = os.path.join(model_dir, "token_maps.json")
 

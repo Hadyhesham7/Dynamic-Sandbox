@@ -4,6 +4,11 @@ All API keys, constants, and shared lists live here.
 """
 
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from the project root if it exists
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 # ──────────────────────────────────────────────────────────
 # VirusTotal API Key
@@ -26,7 +31,10 @@ PLAYWRIGHT_TIMEOUT: int = 20_000  # ms — page navigation timeout
 # Screenshots directory (Step 7 — dynamic analysis)
 # ──────────────────────────────────────────────────────────
 import pathlib as _pathlib
-SCREENSHOTS_DIR: _pathlib.Path = _pathlib.Path("screenshots")
+# Resolve relative to URLLLL/ directory (parent of phishing_pipeline/)
+_PIPELINE_DIR = _pathlib.Path(__file__).parent.resolve()
+_URLLLL_DIR = _PIPELINE_DIR.parent
+SCREENSHOTS_DIR: _pathlib.Path = _URLLLL_DIR / "screenshots"
 SCREENSHOTS_DIR.mkdir(exist_ok=True)
 
 # ──────────────────────────────────────────────────────────

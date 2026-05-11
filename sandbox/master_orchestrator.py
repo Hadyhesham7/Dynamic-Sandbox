@@ -46,8 +46,8 @@ sys.path.insert(0, SCRIPT_DIR)
 # Subsystem B: URL Pipeline
 URL_PIPELINE_DIR = os.path.join(PROJECT_ROOT, "URLLLL")
 if not os.path.isdir(URL_PIPELINE_DIR):
-    # Fallback: try old location
-    URL_PIPELINE_DIR = r"C:\Users\hadyh\Desktop\URLLLL"
+    print(f"[MASTER] WARNING: URLLLL directory not found at: {URL_PIPELINE_DIR}")
+    print(f"[MASTER] Expected layout: <project_root>/URLLLL/phishing_pipeline/")
 sys.path.insert(0, URL_PIPELINE_DIR)
 
 

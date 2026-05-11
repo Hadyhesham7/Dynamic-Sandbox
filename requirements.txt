@@ -34,3 +34,4 @@ yara-python>=4.3.0
 
 # ─── Utilities ──────────────────────────────────────────────
 pydantic>=2.5.0
+python-dotenv>=1.0.0
