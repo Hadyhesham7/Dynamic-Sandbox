@@ -1,0 +1,110 @@
+## =============================================================
+## Priority API List for Hooking — 89 APIs across 8 Categories
+## =============================================================
+## Format: CATEGORY | DLL_NAME | API_NAME
+## =============================================================
+
+## --- FILE SYSTEM (15 APIs) ---
+FILE | kernel32.dll | CreateFileW
+FILE | kernel32.dll | CreateFileA
+FILE | kernel32.dll | WriteFile
+FILE | kernel32.dll | ReadFile
+FILE | kernel32.dll | DeleteFileW
+FILE | kernel32.dll | DeleteFileA
+FILE | kernel32.dll | CopyFileW
+FILE | kernel32.dll | CopyFileExW
+FILE | kernel32.dll | MoveFileWithProgressW
+FILE | kernel32.dll | FindFirstFileExW
+FILE | kernel32.dll | GetFileAttributesW
+FILE | kernel32.dll | SetFileAttributesW
+FILE | kernel32.dll | CreateDirectoryW
+FILE | kernel32.dll | RemoveDirectoryW
+FILE | kernel32.dll | ReplaceFileW
+
+## --- REGISTRY (15 APIs) ---
+REG | advapi32.dll | RegCreateKeyExW
+REG | advapi32.dll | RegCreateKeyExA
+REG | advapi32.dll | RegSetValueExW
+REG | advapi32.dll | RegSetValueExA
+REG | advapi32.dll | RegDeleteKeyW
+REG | advapi32.dll | RegDeleteValueW
+REG | advapi32.dll | RegOpenKeyExW
+REG | advapi32.dll | RegOpenKeyExA
+REG | advapi32.dll | RegQueryValueExW
+REG | advapi32.dll | RegQueryValueExA
+REG | advapi32.dll | RegEnumKeyExW
+REG | advapi32.dll | RegEnumValueW
+REG | advapi32.dll | RegCloseKey
+REG | advapi32.dll | RegConnectRegistryW
+REG | advapi32.dll | RegNotifyChangeKeyValue
+
+## --- PROCESS (13 APIs) ---
+PROC | kernel32.dll | CreateProcessInternalW
+PROC | kernel32.dll | CreateProcessW
+PROC | kernel32.dll | CreateProcessA
+PROC | kernel32.dll | OpenProcess
+PROC | kernel32.dll | TerminateProcess
+PROC | kernel32.dll | CreateRemoteThread
+PROC | kernel32.dll | CreateRemoteThreadEx
+PROC | kernel32.dll | CreateThread
+PROC | shell32.dll  | ShellExecuteExW
+PROC | kernel32.dll | ExitProcess
+PROC | kernel32.dll | CreateToolhelp32Snapshot
+PROC | kernel32.dll | Process32FirstW
+PROC | kernel32.dll | Process32NextW
+
+## --- NETWORK (15 APIs) ---
+NET | ws2_32.dll   | connect
+NET | ws2_32.dll   | send
+NET | ws2_32.dll   | recv
+NET | ws2_32.dll   | sendto
+NET | ws2_32.dll   | recvfrom
+NET | ws2_32.dll   | WSASend
+NET | ws2_32.dll   | WSARecv
+NET | ws2_32.dll   | WSAConnect
+NET | ws2_32.dll   | bind
+NET | ws2_32.dll   | listen
+NET | ws2_32.dll   | accept
+NET | ws2_32.dll   | closesocket
+NET | wininet.dll  | InternetOpenW
+NET | wininet.dll  | InternetConnectW
+NET | wininet.dll  | HttpSendRequestW
+
+## --- MEMORY (10 APIs) ---
+MEM | kernel32.dll | VirtualAlloc
+MEM | kernel32.dll | VirtualAllocEx
+MEM | kernel32.dll | VirtualProtect
+MEM | kernel32.dll | VirtualProtectEx
+MEM | kernel32.dll | VirtualFree
+MEM | kernel32.dll | WriteProcessMemory
+MEM | kernel32.dll | ReadProcessMemory
+MEM | ntdll.dll    | NtAllocateVirtualMemory
+MEM | ntdll.dll    | NtProtectVirtualMemory
+MEM | ntdll.dll    | NtWriteVirtualMemory
+
+## --- DLL LOADING (7 APIs) ---
+DLL | kernel32.dll | LoadLibraryA
+DLL | kernel32.dll | LoadLibraryW
+DLL | kernel32.dll | LoadLibraryExA
+DLL | kernel32.dll | LoadLibraryExW
+DLL | ntdll.dll    | LdrLoadDll
+DLL | kernel32.dll | GetProcAddress
+DLL | kernel32.dll | FreeLibrary
+
+## --- CRYPTO (8 APIs) ---
+CRYPT | advapi32.dll | CryptAcquireContextW
+CRYPT | advapi32.dll | CryptEncrypt
+CRYPT | advapi32.dll | CryptDecrypt
+CRYPT | advapi32.dll | CryptGenKey
+CRYPT | advapi32.dll | CryptImportKey
+CRYPT | advapi32.dll | CryptExportKey
+CRYPT | advapi32.dll | CryptCreateHash
+CRYPT | advapi32.dll | CryptHashData
+
+## --- SYSTEM / EVASION (6 APIs) ---
+SYS | kernel32.dll | IsDebuggerPresent
+SYS | kernel32.dll | CheckRemoteDebuggerPresent
+SYS | kernel32.dll | GetSystemInfo
+SYS | kernel32.dll | GetNativeSystemInfo
+SYS | kernel32.dll | Sleep
+SYS | kernel32.dll | GetTickCount

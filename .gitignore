@@ -1,0 +1,138 @@
+# ============================================================
+# KNOWHOW Sandbox — .gitignore
+# Tailored for Python ML/Sandbox + Azure Deployment
+# ============================================================
+
+# ─────────────────────────────────────────────────────────────
+# 1. PYTHON VIRTUAL ENVIRONMENTS
+# ─────────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env/
+ENV/
+
+# ─────────────────────────────────────────────────────────────
+# 2. ML MODELS & WEIGHTS (upload via Google Drive / Azure Blob)
+# ─────────────────────────────────────────────────────────────
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.model
+*.weights
+*.pb
+*.tflite
+*.bin
+
+# ─────────────────────────────────────────────────────────────
+# 3. DATASETS (too large for Git — upload separately)
+# ─────────────────────────────────────────────────────────────
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.arrow
+URLLLL/Full Dataset/
+Full Dataset/
+
+# ─────────────────────────────────────────────────────────────
+# 4. THREAT INTEL FEEDS (auto-downloaded at runtime)
+# ─────────────────────────────────────────────────────────────
+URLLLL/phishing_pipeline/data/tranco_top1m.csv
+URLLLL/phishing_pipeline/data/urlhaus_online.csv
+URLLLL/phishing_pipeline/data/vt_cache.db
+URLLLL/phishing_pipeline/data/*.zip
+
+# ─────────────────────────────────────────────────────────────
+# 5. REPORTS & GENERATED OUTPUT
+# ─────────────────────────────────────────────────────────────
+reports/
+sandbox/reports/
+screenshots/
+URLLLL/screenshots/
+uploads/
+*.html
+
+# ─────────────────────────────────────────────────────────────
+# 6. LOGS & TEMP FILES
+# ─────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ─────────────────────────────────────────────────────────────
+# 7. EMAIL SAMPLES (sensitive — never commit)
+# ─────────────────────────────────────────────────────────────
+*.eml
+*.msg
+
+# ─────────────────────────────────────────────────────────────
+# 8. SANDBOX ARTIFACTS (malware execution output)
+# ─────────────────────────────────────────────────────────────
+sandbox/reports/artifacts/
+sandbox/reports/raw/
+*.dmp
+*.pcap
+*.pcapng
+
+# ─────────────────────────────────────────────────────────────
+# 9. PYTHON BYTECODE & CACHE
+# ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# ─────────────────────────────────────────────────────────────
+# 10. C/C++ BUILD ARTIFACTS (hook_dll)
+# ─────────────────────────────────────────────────────────────
+sandbox/hook_dll/build*/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.idb
+*.tlog
+CMakeCache.txt
+CMakeFiles/
+# Exception: keep the compiled hook DLL (small, required by sandbox)
+!sandbox/hook_monitor.dll
+
+# ─────────────────────────────────────────────────────────────
+# 11. IDE & OS FILES
+# ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────────────────────────
+# 12. DISTRIBUTION & PACKAGING
+# ─────────────────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+*.zip
+
+# ─────────────────────────────────────────────────────────────
+# 13. ENVIRONMENT VARIABLE FILES (secrets — never commit)
+# ─────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+*.env

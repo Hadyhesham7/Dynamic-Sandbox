@@ -1,0 +1,121 @@
+{
+    "info": {
+        "id": 1,
+        "version": "custom-sandbox-1.0"
+    },
+    "behavior": {
+        "processes": [
+            {
+                "pid": 2048,
+                "process_name": "sample.exe",
+                "process_path": "C:\\Users\\user\\Desktop\\sample.exe",
+                "command_line": "\"C:\\Users\\user\\Desktop\\sample.exe\"",
+                "first_seen": 1700000000.0,
+                "calls": [
+                    {
+                        "api": "LdrLoadDll",
+                        "return": "0x00000000",
+                        "time": 1700000000.001,
+                        "arguments": [
+                            {
+                                "name": "FileName",
+                                "value": "kernel32.dll"
+                            },
+                            {
+                                "name": "BaseAddress",
+                                "value": "0x75910000"
+                            }
+                        ]
+                    },
+                    {
+                        "api": "CreateProcessInternalW",
+                        "return": "1",
+                        "time": 1700000000.1,
+                        "arguments": [
+                            {
+                                "name": "lpApplicationName",
+                                "value": "C:\\Windows\\System32\\svchost.exe"
+                            },
+                            {
+                                "name": "dwCreationFlags",
+                                "value": "0x00000004"
+                            },
+                            {
+                                "name": "hProcess",
+                                "value": "0x00000088"
+                            },
+                            {
+                                "name": "hThread",
+                                "value": "0x0000008C"
+                            }
+                        ]
+                    },
+                    {
+                        "api": "VirtualAllocEx",
+                        "return": "0x00400000",
+                        "time": 1700000000.2,
+                        "arguments": [
+                            {
+                                "name": "hProcess",
+                                "value": "0x00000088"
+                            },
+                            {
+                                "name": "lpAddress",
+                                "value": "0x00000000"
+                            },
+                            {
+                                "name": "dwSize",
+                                "value": "0x00010000"
+                            },
+                            {
+                                "name": "flProtect",
+                                "value": "0x00000040"
+                            }
+                        ]
+                    },
+                    {
+                        "api": "WriteProcessMemory",
+                        "return": "1",
+                        "time": 1700000000.3,
+                        "arguments": [
+                            {
+                                "name": "hProcess",
+                                "value": "0x00000088"
+                            },
+                            {
+                                "name": "lpBaseAddress",
+                                "value": "0x00400000"
+                            },
+                            {
+                                "name": "nSize",
+                                "value": "0x00005000"
+                            }
+                        ]
+                    },
+                    {
+                        "api": "SetThreadContext",
+                        "return": "1",
+                        "time": 1700000000.4,
+                        "arguments": [
+                            {
+                                "name": "hThread",
+                                "value": "0x0000008C"
+                            }
+                        ]
+                    },
+                    {
+                        "api": "ResumeThread",
+                        "return": "1",
+                        "time": 1700000000.5,
+                        "arguments": [
+                            {
+                                "name": "hThread",
+                                "value": "0x0000008C"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

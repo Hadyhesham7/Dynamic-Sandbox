@@ -1,0 +1,98 @@
+{
+    "project": "KNOWHOW Malware Detection Pipeline",
+    "version": "v4",
+    "date": "2026-04-25",
+    "model": {
+        "architecture": "Embedding + Bidirectional LSTM + FC",
+        "embed_dim": 64,
+        "hidden_dim": 128,
+        "num_layers": 2,
+        "seq_len": 100,
+        "dropout": 0.3,
+        "bidirectional": true
+    },
+    "training": {
+        "epochs": 50,
+        "batch_size": 128,
+        "learning_rate": 0.001,
+        "loss_function": "Focal Loss (alpha=0.25, gamma=2.0)",
+        "optimizer": "Adam",
+        "unk_mask_rate": 0.1,
+        "random_state": 42,
+        "test_size": 0.25
+    },
+    "vocabulary": {
+        "total_apis": 509,
+        "vocab_size": "dynamic (num_apis + 2)",
+        "pad_idx": 0,
+        "unk_idx": "dynamic (num_apis + 1)",
+        "token_scheme": "0=PAD, 1..N=APIs (shifted +1), N+1=UNK",
+        "api_list_file": "api_list.txt",
+        "token_maps_file": "output/token_maps.json"
+    },
+    "datasets": {
+        "oliveira": {
+            "file": "dynamic_api_call_sequence_per_malware_100_0_306.csv",
+            "samples": 43876,
+            "malware": 42797,
+            "benign": 1079,
+            "api_range": "0-306 (original indices)"
+        },
+        "malbehavd": {
+            "file": "new datasets/MalBehavD-V1-dataset.csv",
+            "samples": 2570,
+            "malware": 1285,
+            "benign": 1285,
+            "labels": "0=Benign, 1=Malware",
+            "api_overlap": "99.7%"
+        },
+        "virusshare": {
+            "file": "new datasets/VirusShare.csv",
+            "status": "NOT SUITABLE (1.2% API overlap)",
+            "filtered_output": "new datasets/virusshare_filtered.csv",
+            "filtered_samples": 49
+        },
+        "clean_benign": {
+            "file": "new datasets/clean_benign_API_dataset.csv",
+            "status": "NOT SUITABLE (7.8% API overlap)"
+        }
+    },
+    "reliability_tiers": {
+        "HIGH": "UNK ratio <= 10%",
+        "MEDIUM": "UNK ratio <= 30%",
+        "LOW": "UNK ratio <= 70%",
+        "VERY_LOW": "UNK ratio > 70% (verdict unreliable)"
+    },
+    "files": {
+        "malware_pipeline.py": "Core training + inference pipeline",
+        "me_test.py": "Interactive testing with API indices",
+        "me_test_names.py": "Interactive testing with API names",
+        "test_inference.py": "Automated 6-test validation suite",
+        "filter_virusshare.py": "VirusShare dataset filter",
+        "api_list.txt": "509 API names (expanded vocabulary)",
+        "output/malware_lstm_model.pt": "Trained PyTorch model weights",
+        "output/token_maps.json": "API name <-> token index mappings",
+        "output/results.csv": "Training metrics"
+    },
+    "last_training_results": {
+        "version": "v4",
+        "accuracy": 0.9593,
+        "f1_score": 0.9698,
+        "roc_auc": 0.9888,
+        "benign_precision": 0.9223,
+        "benign_recall": 0.9535,
+        "false_positives": 22,
+        "false_negatives": 38,
+        "vocab_size": 511,
+        "malware_samples": 5000,
+        "benign_samples": 2364,
+        "note": "Retrained with 509 vocab, undersampled malware to 5000"
+    },
+    "next_steps": [
+        "User: Find benign API sequence datasets online",
+        "User: Find Cuckoo/Frida-based malware datasets",
+        "Retrain with expanded 509-API vocabulary",
+        "Compare metrics before vs after",
+        "Integrate Frida parser when data arrives"
+    ]
+}

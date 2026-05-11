@@ -1,0 +1,36 @@
+{
+    "project": "KNOWHOW Malware Sandbox — API Hooking Engine",
+    "version": "1.0.0",
+
+    "injection": {
+        "method": "CreateRemoteThread + LoadLibrary",
+        "architecture": "x86",
+        "dll_name": "hook_monitor.dll"
+    },
+
+    "monitoring": {
+        "pipe_name": "\\\\.\\pipe\\sandbox_monitor",
+        "pipe_buffer_size": 65536,
+        "analysis_timeout_seconds": 120,
+        "max_log_entries": 100000
+    },
+
+    "report": {
+        "output_dir": "reports",
+        "format": "json",
+        "include_args": true,
+        "include_return_value": true,
+        "include_timestamps": true
+    },
+
+    "api_categories": {
+        "FILE": "File system operations (create, read, write, delete)",
+        "REG": "Registry operations (create, set, delete, query)",
+        "PROC": "Process management (create, terminate, inject)",
+        "NET": "Network activity (connect, send, receive)",
+        "MEM": "Memory manipulation (alloc, protect, write)",
+        "DLL": "DLL loading (LoadLibrary, LdrLoadDll)",
+        "CRYPT": "Cryptographic operations (encrypt, decrypt, hash)",
+        "SYS": "System info and evasion checks"
+    }
+}
