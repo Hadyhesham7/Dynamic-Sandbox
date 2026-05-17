@@ -535,10 +535,18 @@ class MasterOrchestrator:
             # Try to get verdict from sandbox report
             ai_verdict = sub_a.get("ai_verdict", {})
             if ai_verdict:
-                sandbox_score = ai_verdict.get("combined_confidence", 0)
+                confidence = ai_verdict.get("combined_confidence", 0)
+                verdict_label = ai_verdict.get("verdict", "N/A")
+                # combined_confidence = how confident we are in the verdict.
+                # If BENIGN with 100% confidence → risk = 0
+                # If MALICIOUS with 100% confidence → risk = 100
+                if verdict_label.upper() in ("BENIGN", "CLEAN"):
+                    sandbox_score = max(0, 100 - confidence)
+                else:
+                    sandbox_score = confidence
                 verdict_signals.append(
-                    f"Sandbox: {ai_verdict.get('verdict', 'N/A')} "
-                    f"(score: {sandbox_score})"
+                    f"Sandbox: {verdict_label} "
+                    f"(confidence: {confidence}%, risk: {sandbox_score})"
                 )
             elif sub_a.get("summary", {}).get("risk_indicators"):
                 risk_count = len(sub_a["summary"]["risk_indicators"])
@@ -554,10 +562,15 @@ class MasterOrchestrator:
             h_result = handover.get("sandbox_result", {})
             h_verdict = h_result.get("ai_verdict", {})
             if h_verdict:
-                handover_score = h_verdict.get("combined_confidence", 0)
+                h_confidence = h_verdict.get("combined_confidence", 0)
+                h_label = h_verdict.get("verdict", "N/A")
+                if h_label.upper() in ("BENIGN", "CLEAN"):
+                    handover_score = max(0, 100 - h_confidence)
+                else:
+                    handover_score = h_confidence
                 verdict_signals.append(
-                    f"Downloaded payload: {h_verdict.get('verdict', 'N/A')} "
-                    f"(score: {handover_score})"
+                    f"Downloaded payload: {h_label} "
+                    f"(confidence: {h_confidence}%, risk: {handover_score})"
                 )
 
         # ── Combined score ──
