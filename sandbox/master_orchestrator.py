@@ -535,7 +535,7 @@ class MasterOrchestrator:
             # Try to get verdict from sandbox report
             ai_verdict = sub_a.get("ai_verdict", {})
             if ai_verdict:
-                sandbox_score = ai_verdict.get("threat_score", 0)
+                sandbox_score = ai_verdict.get("combined_confidence", 0)
                 verdict_signals.append(
                     f"Sandbox: {ai_verdict.get('verdict', 'N/A')} "
                     f"(score: {sandbox_score})"
@@ -554,7 +554,7 @@ class MasterOrchestrator:
             h_result = handover.get("sandbox_result", {})
             h_verdict = h_result.get("ai_verdict", {})
             if h_verdict:
-                handover_score = h_verdict.get("threat_score", 0)
+                handover_score = h_verdict.get("combined_confidence", 0)
                 verdict_signals.append(
                     f"Downloaded payload: {h_verdict.get('verdict', 'N/A')} "
                     f"(score: {handover_score})"

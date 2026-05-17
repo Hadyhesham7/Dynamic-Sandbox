@@ -9,10 +9,12 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
+aiohttp>=3.9.0
 
-# ─── Azure SDKs (VM Snapshot Revert — Gateway only) ────────
+# ─── Cloud SDKs (VM Snapshot Revert — Gateway only) ────────
 azure-identity>=1.15.0
 azure-mgmt-compute>=30.0.0
+google-cloud-compute>=1.15.0
 
 # ─── ML & Data Science ─────────────────────────────────────
 xgboost>=2.0.0
