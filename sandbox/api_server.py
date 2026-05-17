@@ -189,37 +189,44 @@ def _save_job_reports(job_id: str, result: dict) -> tuple[Path, Path | None]:
     try:
         input_type = result.get("input_type", "")
 
-        if input_type == "FILE" or input_type == "EMAIL":
-            # Use the sandbox HTML report generator
-            from collector.html_report import generate_html_report
-            # The generator reads from a JSON file
-            html_out = str(job_report_dir / "report.html")
-            generate_html_report(str(json_path), html_out)
-            html_path = Path(html_out)
+        # Fallback FIRST: the pipeline already generates a polished HTML
+        # during analysis — use that if it exists.
+        for candidate in [
+            SCRIPT_DIR / "reports" / "final_report.html",
+            SCRIPT_DIR / "reports" / "unified_report.html",
+        ]:
+            if candidate.exists():
+                dest = job_report_dir / "report.html"
+                shutil.copy2(candidate, dest)
+                html_path = dest
+                log.info(f"[REPORT] HTML copied from pipeline: {candidate.name}")
+                break
 
-        elif input_type == "URL":
-            # Use the URL pipeline HTML report generator
-            sys.path.insert(0, str(PROJECT_ROOT / "URLLLL"))
-            from url_html_report import generate_url_html_report
-            html_out = str(job_report_dir / "report.html")
-            url_results = result.get("subsystem_b", [])
-            if isinstance(url_results, dict):
-                url_results = [url_results]
-            if url_results:
-                generate_url_html_report(url_results, html_out)
-                html_path = Path(html_out)
-
-        # Fallback: also check if the pipeline already generated one
+        # If the pipeline didn't generate one, generate it ourselves
         if html_path is None or not html_path.exists():
-            for candidate in [
-                SCRIPT_DIR / "reports" / "final_report.html",
-                SCRIPT_DIR / "reports" / "unified_report.html",
-            ]:
-                if candidate.exists():
-                    dest = job_report_dir / "report.html"
-                    shutil.copy2(candidate, dest)
-                    html_path = dest
-                    break
+            if input_type in ("FILE", "EMAIL"):
+                from collector.html_report import generate_html_report
+                # The HTML generator expects the FLAT sandbox report,
+                # not the unified wrapper. Extract subsystem_a data.
+                sandbox_data = result.get("subsystem_a") or {}
+                if sandbox_data:
+                    sandbox_json = job_report_dir / "sandbox_report.json"
+                    with open(sandbox_json, "w", encoding="utf-8") as f:
+                        json.dump(sandbox_data, f, indent=2, default=str)
+                    html_out = str(job_report_dir / "report.html")
+                    generate_html_report(str(sandbox_json), html_out)
+                    html_path = Path(html_out)
+
+            elif input_type == "URL":
+                sys.path.insert(0, str(PROJECT_ROOT / "URLLLL"))
+                from url_html_report import generate_url_html_report
+                html_out = str(job_report_dir / "report.html")
+                url_results = result.get("subsystem_b", [])
+                if isinstance(url_results, dict):
+                    url_results = [url_results]
+                if url_results:
+                    generate_url_html_report(url_results, html_out)
+                    html_path = Path(html_out)
 
         if html_path and html_path.exists():
             log.info(f"[REPORT] HTML saved: {html_path}")
