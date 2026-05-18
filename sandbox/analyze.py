@@ -357,7 +357,9 @@ Examples:
             )
         target_pid = target_proc.pid
         print(f"[PIPELINE]   PID: {target_pid}")
-        time.sleep(1)
+        # Wait 5s for PyInstaller to unpack + bootstrap Python + load DLLs
+        # (ws2_32, advapi32, etc. must be loaded BEFORE hook DLL injection)
+        time.sleep(5)
 
         # ── STEP 4: Inject DLL ──
         print(f"[PIPELINE] Step 4: Injecting DLL...")
