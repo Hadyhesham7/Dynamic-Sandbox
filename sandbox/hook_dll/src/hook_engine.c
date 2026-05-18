@@ -67,17 +67,12 @@ int hook_engine_install_all(void)
         HookEntry* entry = &g_hooks[i];
 
         /*
-         * CRITICAL FIX: Force-load the target DLL if not already present.
+         * Force-load the target DLL if not already present.
          */
         HMODULE hTarget = GetModuleHandleW(entry->module_name);
         if (!hTarget) {
             hTarget = LoadLibraryW(entry->module_name);
-            if (hTarget) {
-                _snprintf(msg, sizeof(msg),
-                    "[SANDBOX] Force-loaded %ls for hooking\n",
-                    entry->module_name);
-                OutputDebugStringA(msg);
-            } else {
+            if (!hTarget) {
                 _snprintf(msg, sizeof(msg),
                     "[SANDBOX] WARNING: Cannot load %ls — skipping %s\n",
                     entry->module_name, entry->api_name);
@@ -86,61 +81,51 @@ int hook_engine_install_all(void)
             }
         }
 
-        status = MH_CreateHookApi(
-            entry->module_name,
-            entry->api_name,
-            entry->detour_func,
-            entry->original_func
-        );
+        /*
+         * CRITICAL FIX: On Windows 10+, kernel32 and advapi32 functions
+         * are forwarded to kernelbase.dll. Python/ctypes and the CRT
+         * resolve imports to kernelbase directly, so hooking the
+         * kernel32 stub does NOT intercept those calls.
+         *
+         * Solution: Check if kernelbase exports the same API.
+         * If yes, hook the kernelbase version (the real implementation).
+         * If no, hook the original module version.
+         *
+         * We use MH_CreateHook (not MH_CreateHookApi) with the
+         * resolved function address to avoid double-hooking.
+         */
+        void* pFunc = (void*)GetProcAddress(hTarget, entry->api_name);
+        if (!pFunc) {
+            _snprintf(msg, sizeof(msg),
+                "[SANDBOX] WARNING: %s not found in %ls\n",
+                entry->api_name, entry->module_name);
+            OutputDebugStringA(msg);
+            continue;
+        }
+
+        /* For kernel32/advapi32: prefer kernelbase if available */
+        if (_wcsicmp(entry->module_name, L"kernel32") == 0 ||
+            _wcsicmp(entry->module_name, L"advapi32") == 0) {
+            HMODULE hKB = GetModuleHandleW(L"kernelbase");
+            if (hKB) {
+                void* pKBFunc = (void*)GetProcAddress(hKB, entry->api_name);
+                if (pKBFunc && pKBFunc != pFunc) {
+                    /* Use kernelbase version — this is the real implementation */
+                    pFunc = pKBFunc;
+                }
+            }
+        }
+
+        status = MH_CreateHook(pFunc, entry->detour_func, entry->original_func);
 
         if (status == MH_OK) {
             entry->installed = TRUE;
             installed_count++;
         } else {
             _snprintf(msg, sizeof(msg),
-                "[SANDBOX] WARNING: Failed to hook %s@%ls: %s\n",
-                entry->api_name, entry->module_name, MH_StatusToString(status));
+                "[SANDBOX] WARNING: Failed to hook %s: %s\n",
+                entry->api_name, MH_StatusToString(status));
             OutputDebugStringA(msg);
-        }
-
-        /*
-         * CRITICAL FIX #2: On Windows 10+, many kernel32 functions are
-         * FORWARDED to kernelbase.dll. Python/ctypes and the CRT may
-         * call kernelbase directly, bypassing our kernel32 hook.
-         * Solution: Also hook the kernelbase version of the same API.
-         * We use the same detour but a throwaway original pointer.
-         */
-        if (_wcsicmp(entry->module_name, L"kernel32") == 0) {
-            HMODULE hKB = GetModuleHandleW(L"kernelbase");
-            if (hKB && GetProcAddress(hKB, entry->api_name)) {
-                /* Use MH_CreateHookApi for kernelbase version */
-                static void* kb_dummy;  /* dummy original — not used */
-                MH_STATUS kb_status = MH_CreateHookApi(
-                    L"kernelbase",
-                    entry->api_name,
-                    entry->detour_func,
-                    &kb_dummy
-                );
-                if (kb_status == MH_OK) {
-                    installed_count++;
-                }
-            }
-        }
-        /* Same for advapi32 -> kernelbase forwarding */
-        if (_wcsicmp(entry->module_name, L"advapi32") == 0) {
-            HMODULE hKB = GetModuleHandleW(L"kernelbase");
-            if (hKB && GetProcAddress(hKB, entry->api_name)) {
-                static void* kb_dummy2;
-                MH_STATUS kb_status = MH_CreateHookApi(
-                    L"kernelbase",
-                    entry->api_name,
-                    entry->detour_func,
-                    &kb_dummy2
-                );
-                if (kb_status == MH_OK) {
-                    installed_count++;
-                }
-            }
         }
     }
 
