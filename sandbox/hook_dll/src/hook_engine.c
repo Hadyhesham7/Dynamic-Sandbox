@@ -122,6 +122,31 @@ int hook_engine_install_all(void)
         installed_count, g_hook_count);
     OutputDebugStringA(msg);
 
+    /*
+     * DIAGNOSTIC: Send hook installation summary through the PIPE
+     * so it appears in api_raw_report.json for debugging.
+     * This is critical because OutputDebugStringA output is invisible.
+     */
+    {
+        char summary[256];
+        _snprintf(summary, sizeof(summary),
+            "\"installed\":%d,\"total\":%d",
+            installed_count, g_hook_count);
+        logger_log_call("__hook_summary__", "DIAG", summary, "OK");
+    }
+
+    /* Log each hook's status */
+    for (int i = 0; i < g_hook_count; i++) {
+        char hook_args[256];
+        _snprintf(hook_args, sizeof(hook_args),
+            "\"api\":\"%s\",\"module\":\"%ls\",\"installed\":%s",
+            g_hooks[i].api_name,
+            g_hooks[i].module_name,
+            g_hooks[i].installed ? "true" : "false");
+        logger_log_call("__hook_status__", "DIAG", hook_args,
+            g_hooks[i].installed ? "OK" : "FAIL");
+    }
+
     return installed_count;
 }
 
