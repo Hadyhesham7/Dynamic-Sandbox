@@ -66,6 +66,30 @@ int hook_engine_install_all(void)
     for (int i = 0; i < g_hook_count; i++) {
         HookEntry* entry = &g_hooks[i];
 
+        /*
+         * CRITICAL FIX: Force-load the target DLL if not already present.
+         * MH_CreateHookApi internally uses GetModuleHandleW which returns
+         * NULL for DLLs not yet loaded (e.g. ws2_32.dll before Python's
+         * socket module initializes). LoadLibraryW ensures the DLL is
+         * mapped into the process so MinHook can patch its functions.
+         */
+        HMODULE hTarget = GetModuleHandleW(entry->module_name);
+        if (!hTarget) {
+            hTarget = LoadLibraryW(entry->module_name);
+            if (hTarget) {
+                _snprintf(msg, sizeof(msg),
+                    "[SANDBOX] Force-loaded %ls for hooking\n",
+                    entry->module_name);
+                OutputDebugStringA(msg);
+            } else {
+                _snprintf(msg, sizeof(msg),
+                    "[SANDBOX] WARNING: Cannot load %ls — skipping %s\n",
+                    entry->module_name, entry->api_name);
+                OutputDebugStringA(msg);
+                continue;
+            }
+        }
+
         status = MH_CreateHookApi(
             entry->module_name,     /* e.g., L"kernel32" */
             entry->api_name,        /* e.g., "CreateFileW" */
