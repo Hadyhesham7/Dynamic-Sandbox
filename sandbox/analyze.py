@@ -454,7 +454,7 @@ Examples:
             "name": os.path.basename(sample_path),
             "filename": os.path.basename(sample_path),
             "path": sample_path,
-            "size": os.path.getsize(sample_path),
+            "size": os.path.getsize(sample_path) if os.path.isfile(sample_path) else 0,
             "sha256": route_result["file_info"].get("sha256", ""),
             "file_type": route_result["file_info"].get("description", ""),
             "strategy": strategy,

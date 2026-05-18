@@ -628,18 +628,34 @@ async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
         cleaned.append(str(UPLOAD_DIR))
         log.info(f"[CLEANUP] Wiped: {UPLOAD_DIR}")
 
-    # 5. Wipe ALL report directories
-    if REPORT_DIR.exists():
+    # 5. Wipe ALL report files — file by file to handle locked files
+    reports_path = SCRIPT_DIR / "reports"
+    files_wiped = 0
+    if reports_path.exists():
+        for root, dirs, files in os.walk(str(reports_path), topdown=False):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                try:
+                    os.remove(fpath)
+                    files_wiped += 1
+                except Exception as e:
+                    log.warning(f"[CLEANUP] Cannot delete {fpath}: {e}")
+            # Remove empty subdirectories
+            for dname in dirs:
+                dpath = os.path.join(root, dname)
+                try:
+                    os.rmdir(dpath)
+                except Exception:
+                    pass
+    if files_wiped:
+        cleaned.append(f"report_files:{files_wiped}")
+        log.info(f"[CLEANUP] Deleted {files_wiped} report files")
+
+    # Also wipe REPORT_DIR if it differs from sandbox/reports
+    if REPORT_DIR != reports_path and REPORT_DIR.exists():
         shutil.rmtree(REPORT_DIR, ignore_errors=True)
         cleaned.append(str(REPORT_DIR))
         log.info(f"[CLEANUP] Wiped: {REPORT_DIR}")
-
-    # Also clean the pipeline's own reports
-    pipeline_report = SCRIPT_DIR / "reports"
-    if pipeline_report.exists() and pipeline_report != REPORT_DIR:
-        shutil.rmtree(pipeline_report, ignore_errors=True)
-        cleaned.append(str(pipeline_report))
-        log.info(f"[CLEANUP] Wiped: {pipeline_report}")
 
     # 6. Wipe URL pipeline screenshots
     screenshots_dir = PROJECT_ROOT / "URLLLL" / "screenshots"
