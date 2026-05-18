@@ -559,69 +559,65 @@ async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
     reg_cleaned = 0
     try:
         import winreg
-        # Remove SandboxTest key
-        try:
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\SandboxTest")
-            reg_cleaned += 1
-        except FileNotFoundError:
-            pass
-        # Remove persistence entry from Run key
-        try:
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                0, winreg.KEY_SET_VALUE,
-            )
+
+        def _delete_reg_tree(hive, path):
+            """Recursively delete a registry key and ALL its subkeys."""
             try:
-                winreg.DeleteValue(key, "SandboxTestPersistence")
-                reg_cleaned += 1
-            except FileNotFoundError:
-                pass
-            winreg.CloseKey(key)
-        except Exception:
-            pass
-        # Remove MalwareTestPersistence entry
-        try:
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                0, winreg.KEY_SET_VALUE,
-            )
-            try:
-                winreg.DeleteValue(key, "MalwareTestPersistence")
-                reg_cleaned += 1
-            except FileNotFoundError:
-                pass
-            winreg.CloseKey(key)
-        except Exception:
-            pass
-        # Remove MalwareTestRunOnce entry
-        try:
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\RunOnce",
-                0, winreg.KEY_SET_VALUE,
-            )
-            try:
-                winreg.DeleteValue(key, "MalwareTestRunOnce")
-                reg_cleaned += 1
-            except FileNotFoundError:
-                pass
-            winreg.CloseKey(key)
-        except Exception:
-            pass
-        # Remove new_malware config & service keys
-        for subkey in [r"Software\MalwareTestConfig",
-                       r"Software\MalwareTestService"]:
-            try:
-                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, subkey)
-                reg_cleaned += 1
-            except FileNotFoundError:
-                pass
+                key = winreg.OpenKey(hive, path, 0, winreg.KEY_ALL_ACCESS)
+                # Must delete all subkeys first (bottom-up)
+                while True:
+                    try:
+                        child = winreg.EnumKey(key, 0)
+                        _delete_reg_tree(hive, f"{path}\\{child}")
+                    except OSError:
+                        break
+                winreg.CloseKey(key)
+                winreg.DeleteKey(hive, path)
+                return True
             except Exception:
-                pass
+                return False
+
+        def _delete_reg_value(path, value_name):
+            """Delete a single value from a registry key."""
+            try:
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, path,
+                    0, winreg.KEY_SET_VALUE,
+                )
+                try:
+                    winreg.DeleteValue(key, value_name)
+                    return True
+                except FileNotFoundError:
+                    return False
+                finally:
+                    winreg.CloseKey(key)
+            except Exception:
+                return False
+
+        # Delete registry TREES (keys with subkeys)
+        for tree_path in [
+            r"Software\SandboxTest",
+            r"Software\MalwareTestConfig",
+            r"Software\MalwareTestService",
+        ]:
+            if _delete_reg_tree(winreg.HKEY_CURRENT_USER, tree_path):
+                reg_cleaned += 1
+
+        # Delete persistence VALUES from Run/RunOnce
+        run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        for val in ["SandboxTestPersistence", "MalwareTestPersistence"]:
+            if _delete_reg_value(run_key, val):
+                reg_cleaned += 1
+
+        runonce_key = r"Software\Microsoft\Windows\CurrentVersion\RunOnce"
+        for val in ["MalwareTestRunOnce"]:
+            if _delete_reg_value(runonce_key, val):
+                reg_cleaned += 1
+
     except ImportError:
         log.warning("[CLEANUP] winreg not available (non-Windows)")
+    except Exception as e:
+        log.warning(f"[CLEANUP] Registry cleanup error (non-fatal): {e}")
     if reg_cleaned:
         cleaned.append(f"registry_keys:{reg_cleaned}")
         log.info(f"[CLEANUP] Cleaned {reg_cleaned} registry entries")
