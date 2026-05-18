@@ -37,7 +37,7 @@ typedef struct {
 } HookEntry;
 
 /* Maximum number of hooks we can register */
-#define MAX_HOOKS 256
+#define MAX_HOOKS 512
 
 /* --- Public API --- */
 
