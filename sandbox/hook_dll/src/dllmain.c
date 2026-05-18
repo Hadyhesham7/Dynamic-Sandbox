@@ -62,6 +62,45 @@ BOOL APIENTRY DllMain(
             "[SANDBOX] %d hooks active. Monitoring started.\n", count);
         OutputDebugStringA(msg);
 
+        /*
+         * SELF-TEST: Call hooked APIs from within the DLL to verify
+         * they actually intercept. If these appear in the report,
+         * hooks work. If not, something is fundamentally broken.
+         */
+        {
+            char diag[256];
+
+            /* Test 1: CreateFileW on NUL device */
+            HANDLE hTest = CreateFileW(L"NUL", GENERIC_READ, 0, NULL,
+                                       OPEN_EXISTING, 0, NULL);
+            _snprintf(diag, sizeof(diag),
+                "\"test\":\"CreateFileW_NUL\",\"result\":\"%s\"",
+                hTest != INVALID_HANDLE_VALUE ? "OK" : "FAIL");
+            logger_log_call("__selftest__", "DIAG", diag, "");
+            if (hTest != INVALID_HANDLE_VALUE) CloseHandle(hTest);
+
+            /* Test 2: VirtualAlloc + VirtualFree */
+            LPVOID pTest = VirtualAlloc(NULL, 4096, 0x1000, 0x04);
+            _snprintf(diag, sizeof(diag),
+                "\"test\":\"VirtualAlloc_4KB\",\"result\":\"%s\",\"addr\":\"0x%p\"",
+                pTest ? "OK" : "FAIL", pTest);
+            logger_log_call("__selftest__", "DIAG", diag, "");
+            if (pTest) VirtualFree(pTest, 0, 0x8000);
+
+            /* Test 3: Log the actual hooked addresses for debugging */
+            HMODULE hK32 = GetModuleHandleW(L"kernel32");
+            HMODULE hKB  = GetModuleHandleW(L"kernelbase");
+            void* pCFW_k32 = (void*)GetProcAddress(hK32, "CreateFileW");
+            void* pCFW_kb  = hKB ? (void*)GetProcAddress(hKB, "CreateFileW") : NULL;
+            void* pVA_k32  = (void*)GetProcAddress(hK32, "VirtualAlloc");
+            void* pVA_kb   = hKB ? (void*)GetProcAddress(hKB, "VirtualAlloc") : NULL;
+            _snprintf(diag, sizeof(diag),
+                "\"CreateFileW_k32\":\"0x%p\",\"CreateFileW_kb\":\"0x%p\","
+                "\"VirtualAlloc_k32\":\"0x%p\",\"VirtualAlloc_kb\":\"0x%p\"",
+                pCFW_k32, pCFW_kb, pVA_k32, pVA_kb);
+            logger_log_call("__selftest_addrs__", "DIAG", diag, "");
+        }
+
         break;
     }
 
