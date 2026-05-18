@@ -1,5 +1,5 @@
 """
-api_server.py — FastAPI REST Gateway for the KNOWHOW Sandbox (v2.0)
+api_server.py — FastAPI REST Gateway for the KNOWHOW Sandbox (v2.1)
 ====================================================================
 Enterprise-grade HTTP bridge between the Email Gateway and the
 MasterOrchestrator analysis engine.
@@ -32,7 +32,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import glob
 import os
+import subprocess as _sp
 import sys
 import time
 import uuid
@@ -44,8 +46,9 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Security
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 # ─── Logging ────────────────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 API_KEY: str = os.environ.get("KNOWHOW_API_KEY", "knowhow-default-dev-key-change-me")
 ANALYSIS_TIMEOUT: int = int(os.environ.get("KNOWHOW_TIMEOUT", "300"))
+FILE_TIMEOUT: int = int(os.environ.get("KNOWHOW_FILE_TIMEOUT", "120"))
 MAX_CONCURRENT: int = int(os.environ.get("KNOWHOW_MAX_CONCURRENT", "3"))
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -108,19 +112,25 @@ _init_runtime_dirs()
 _jobs: dict[str, dict] = {}
 _executor = ProcessPoolExecutor(max_workers=MAX_CONCURRENT)
 
+# ─── Security Scheme (Swagger "Authorize" button) ──────────────────────────
+_api_key_header = APIKeyHeader(
+    name="x-api-key", auto_error=False,
+    description="Default: knowhow-default-dev-key-change-me",
+)
+
 # ─── FastAPI App ────────────────────────────────────────────────────────────
 app = FastAPI(
     title="KNOWHOW Sandbox API",
-    version="2.0.0",
+    version="2.1.0",
     description="Email Gateway ↔ Dynamic Malware Sandbox REST interface (Webhook + Polling)",
     docs_url="/docs",
 )
 
 
-# ─── Auth ───────────────────────────────────────────────────────────────────
+# ─── Auth Dependency ───────────────────────────────────────────────────────
 
-def _verify_api_key(x_api_key: str = Header(None)):
-    if not x_api_key or x_api_key != API_KEY:
+async def _verify_api_key(api_key: str = Security(_api_key_header)):
+    if not api_key or api_key != API_KEY:
         raise HTTPException(401, "Invalid or missing API key.")
 
 
@@ -155,7 +165,7 @@ class CleanupResponse(BaseModel):
 
 # ─── Worker Function (child process) ───────────────────────────────────────
 
-def _run_analysis(input_path: str, skip_dynamic: bool = False) -> dict:
+def _run_analysis(input_path: str, timeout: int = 120) -> dict:
     """Invoked in a child process via ProcessPoolExecutor."""
     import sys as _sys
     script_dir = str(Path(__file__).parent.resolve())
@@ -164,7 +174,7 @@ def _run_analysis(input_path: str, skip_dynamic: bool = False) -> dict:
     _sys.path.insert(0, str(Path(project_root) / "URLLLL"))
 
     from master_orchestrator import MasterOrchestrator
-    orch = MasterOrchestrator(skip_dynamic=skip_dynamic)
+    orch = MasterOrchestrator(timeout=timeout)
     return orch.analyze(input_path)
 
 
@@ -288,7 +298,7 @@ async def _deliver_webhook(job_id: str, callback_url: str, result: dict):
 # ─── Analysis Executor ──────────────────────────────────────────────────────
 
 async def _execute_analysis(
-    job_id: str, input_path: str, skip_dynamic: bool, callback_url: str | None
+    job_id: str, input_path: str, callback_url: str | None
 ):
     """Run orchestrator in process pool, save reports, fire webhook."""
     job = _jobs[job_id]
@@ -297,7 +307,7 @@ async def _execute_analysis(
 
     try:
         result = await asyncio.wait_for(
-            loop.run_in_executor(_executor, _run_analysis, input_path, skip_dynamic),
+            loop.run_in_executor(_executor, _run_analysis, input_path, FILE_TIMEOUT),
             timeout=ANALYSIS_TIMEOUT,
         )
         job["status"] = "completed"
@@ -353,16 +363,17 @@ async def _execute_analysis(
 
 @app.get("/api/v1/health")
 async def health_check():
-    """Liveness probe."""
+    """Health Check"""
     active = sum(1 for j in _jobs.values() if j["status"] == "running")
     completed = sum(1 for j in _jobs.values() if j["status"] == "completed")
     return {
         "status": "healthy",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "active_jobs": active,
         "completed_jobs": completed,
         "max_concurrent": MAX_CONCURRENT,
+        "file_timeout": FILE_TIMEOUT,
     }
 
 
@@ -371,22 +382,17 @@ async def analyze(
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
     callback_url: Optional[str] = Form(None),
-    skip_dynamic: bool = Form(False),
-    x_api_key: str = Header(None),
+    _auth=Depends(_verify_api_key),
 ):
     """
     Submit .eml, binary file, or URL for analysis.
 
     - **file**: Upload a file (.eml, .exe, .doc, etc.)
     - **url**: A URL string to analyze
-    - **callback_url**: (Optional) Webhook URL. If provided, results are
-      POSTed here when done (fire-and-forget mode).
-    - **skip_dynamic**: Skip Playwright browser analysis for URLs.
+    - **callback_url**: (Optional) Webhook URL for fire-and-forget mode.
 
     Returns a job_id. Use polling (/status) OR provide callback_url for webhook.
     """
-    _verify_api_key(x_api_key)
-
     if not file and not url:
         raise HTTPException(400, "Must provide 'file' or 'url'.")
 
@@ -403,7 +409,7 @@ async def analyze(
         "started_at": time.time(),
         "result": None,
         "error": None,
-        "callback_url": callback_url,
+        "callback_url": callback_url if callback_url else None,
         "webhook_delivered": None,
         "json_path": None,
         "html_path": None,
@@ -426,7 +432,7 @@ async def analyze(
         job["input_type"] = "URL"
 
     asyncio.create_task(
-        _execute_analysis(job_id, input_path, skip_dynamic, callback_url)
+        _execute_analysis(job_id, input_path, callback_url if callback_url else None)
     )
 
     mode = "Webhook → " + callback_url if callback_url else "Polling → GET /api/v1/status/" + job_id
@@ -438,9 +444,8 @@ async def analyze(
 
 
 @app.get("/api/v1/status/{job_id}", response_model=JobStatusResponse)
-async def get_status(job_id: str, x_api_key: str = Header(None)):
+async def get_status(job_id: str, _auth=Depends(_verify_api_key)):
     """Poll job status (fallback if not using webhooks)."""
-    _verify_api_key(x_api_key)
 
     job = _jobs.get(job_id)
     if not job:
@@ -475,9 +480,8 @@ async def get_status(job_id: str, x_api_key: str = Header(None)):
 
 
 @app.get("/api/v1/report/{job_id}")
-async def get_report_json(job_id: str, x_api_key: str = Header(None)):
+async def get_report_json(job_id: str, _auth=Depends(_verify_api_key)):
     """Retrieve the full JSON analysis report."""
-    _verify_api_key(x_api_key)
 
     job = _jobs.get(job_id)
     if not job:
@@ -495,9 +499,8 @@ async def get_report_json(job_id: str, x_api_key: str = Header(None)):
 
 
 @app.get("/api/v1/report/{job_id}/html")
-async def get_report_html(job_id: str, x_api_key: str = Header(None)):
+async def get_report_html(job_id: str, _auth=Depends(_verify_api_key)):
     """Serve the HTML analysis dashboard directly in the browser."""
-    _verify_api_key(x_api_key)
 
     job = _jobs.get(job_id)
     if not job:
@@ -515,63 +518,168 @@ async def get_report_html(job_id: str, x_api_key: str = Header(None)):
 # ─── Cleanup / Environment Reset ───────────────────────────────────────────
 
 @app.post("/api/v1/cleanup", response_model=CleanupResponse)
-async def cleanup_sandbox(x_api_key: str = Header(None)):
+async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
     """
-    SOFT RESET — Wipe all analysis artifacts (files only, no VM revert).
-
-    Use this for quick resets between analyses when a full snapshot
-    revert is not needed.
+    FULL CLEANUP — Kill processes, wipe artifacts, clean temp files,
+    remove registry persistence, and reset the sandbox to a clean state.
     """
-    _verify_api_key(x_api_key)
     cleaned = []
 
-    # 1. Wipe uploads
+    # 1. Kill known test / malware processes
+    for proc_name in ["monitor_tester.exe", "api_exerciser3.exe",
+                      "new_malware.exe", "payload.dll"]:
+        try:
+            _sp.run(["taskkill", "/F", "/IM", proc_name],
+                    capture_output=True, text=True, timeout=5)
+        except Exception:
+            pass
+    cleaned.append("killed_test_processes")
+    log.info("[CLEANUP] Killed test processes")
+
+    # 2. Clean temp artifacts (sandbox_test_*, malware_test_*)
+    temp_dir = os.environ.get("TEMP", os.environ.get("TMP", ""))
+    temp_cleaned = 0
+    if temp_dir:
+        for pattern in ["sandbox_test_*", "malware_test_*",
+                        "sandbox_test_staging"]:
+            for item in glob.glob(os.path.join(temp_dir, pattern)):
+                try:
+                    if os.path.isdir(item):
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        os.remove(item)
+                    temp_cleaned += 1
+                except Exception:
+                    pass
+    if temp_cleaned:
+        cleaned.append(f"temp_files:{temp_cleaned}")
+        log.info(f"[CLEANUP] Removed {temp_cleaned} temp artifacts")
+
+    # 3. Clean registry persistence keys
+    reg_cleaned = 0
+    try:
+        import winreg
+        # Remove SandboxTest key
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, r"Software\SandboxTest")
+            reg_cleaned += 1
+        except FileNotFoundError:
+            pass
+        # Remove persistence entry from Run key
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_SET_VALUE,
+            )
+            try:
+                winreg.DeleteValue(key, "SandboxTestPersistence")
+                reg_cleaned += 1
+            except FileNotFoundError:
+                pass
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+        # Remove MalwareTestPersistence entry
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0, winreg.KEY_SET_VALUE,
+            )
+            try:
+                winreg.DeleteValue(key, "MalwareTestPersistence")
+                reg_cleaned += 1
+            except FileNotFoundError:
+                pass
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+        # Remove MalwareTestRunOnce entry
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\RunOnce",
+                0, winreg.KEY_SET_VALUE,
+            )
+            try:
+                winreg.DeleteValue(key, "MalwareTestRunOnce")
+                reg_cleaned += 1
+            except FileNotFoundError:
+                pass
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+        # Remove new_malware config & service keys
+        for subkey in [r"Software\MalwareTestConfig",
+                       r"Software\MalwareTestService"]:
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, subkey)
+                reg_cleaned += 1
+            except FileNotFoundError:
+                pass
+            except Exception:
+                pass
+    except ImportError:
+        log.warning("[CLEANUP] winreg not available (non-Windows)")
+    if reg_cleaned:
+        cleaned.append(f"registry_keys:{reg_cleaned}")
+        log.info(f"[CLEANUP] Cleaned {reg_cleaned} registry entries")
+
+    # 4. Wipe uploads
     if UPLOAD_DIR.exists():
         shutil.rmtree(UPLOAD_DIR, ignore_errors=True)
         cleaned.append(str(UPLOAD_DIR))
         log.info(f"[CLEANUP] Wiped: {UPLOAD_DIR}")
 
-    # 2. Wipe reports
+    # 5. Wipe ALL report directories
     if REPORT_DIR.exists():
         shutil.rmtree(REPORT_DIR, ignore_errors=True)
         cleaned.append(str(REPORT_DIR))
         log.info(f"[CLEANUP] Wiped: {REPORT_DIR}")
 
-    # 3. Wipe URL pipeline screenshots
+    # Also clean the pipeline's own reports
+    pipeline_report = SCRIPT_DIR / "reports"
+    if pipeline_report.exists() and pipeline_report != REPORT_DIR:
+        shutil.rmtree(pipeline_report, ignore_errors=True)
+        cleaned.append(str(pipeline_report))
+        log.info(f"[CLEANUP] Wiped: {pipeline_report}")
+
+    # 6. Wipe URL pipeline screenshots
     screenshots_dir = PROJECT_ROOT / "URLLLL" / "screenshots"
     if screenshots_dir.exists():
         shutil.rmtree(screenshots_dir, ignore_errors=True)
         cleaned.append(str(screenshots_dir))
         log.info(f"[CLEANUP] Wiped: {screenshots_dir}")
 
-    # 4. Wipe VT cache
+    # 7. Wipe VT cache
     vt_cache = PROJECT_ROOT / "URLLLL" / "phishing_pipeline" / "data" / "vt_cache.db"
     if vt_cache.exists():
         vt_cache.unlink()
         cleaned.append(str(vt_cache))
         log.info(f"[CLEANUP] Deleted: {vt_cache}")
 
-    # 5. Clear in-memory job store
+    # 8. Clear in-memory job store
     completed_jobs = len(_jobs)
     _jobs.clear()
     log.info(f"[CLEANUP] Cleared {completed_jobs} jobs from memory")
 
-    # 6. Re-create clean directory structure
+    # 9. Re-create clean directory structure
     _init_runtime_dirs()
     log.info("[CLEANUP] Directory structure re-initialized")
 
     return CleanupResponse(
         status="clean",
         cleaned_dirs=cleaned,
-        message=f"Sandbox reset complete. {completed_jobs} job(s) purged, "
-                f"{len(cleaned)} director(ies) wiped.",
+        message=f"Full sandbox cleanup done. {completed_jobs} job(s) purged, "
+                f"{len(cleaned)} area(s) cleaned (processes, temp, registry, reports).",
     )
 
 
 # ─── GCP Snapshot Revert (HARD RESET) ──────────────────────────────────────
 
 @app.post("/api/v1/revert")
-async def revert_snapshot(x_api_key: str = Header(None)):
+async def revert_snapshot(_auth=Depends(_verify_api_key)):
     """
     HARD RESET — Revert the Sandbox VM to a clean GCP snapshot.
 
@@ -591,8 +699,6 @@ async def revert_snapshot(x_api_key: str = Header(None)):
     The Gateway should call this AFTER receiving the analysis report.
     After calling this, poll GET /health until the sandbox comes back.
     """
-    _verify_api_key(x_api_key)
-
     # Validate GCP config before attempting
     gcp_project = os.environ.get("GCP_PROJECT", "")
     gcp_zone = os.environ.get("GCP_ZONE", "")
@@ -668,11 +774,12 @@ async def _trigger_revert_delayed():
 @app.on_event("startup")
 async def startup():
     _init_runtime_dirs()
-    log.info("KNOWHOW Sandbox API v2.0 starting...")
+    log.info("KNOWHOW Sandbox API v2.1 starting...")
     log.info(f"  Project root:   {PROJECT_ROOT}")
     log.info(f"  Upload dir:     {UPLOAD_DIR.resolve()}")
     log.info(f"  Report dir:     {REPORT_DIR.resolve()}")
-    log.info(f"  Timeout:        {ANALYSIS_TIMEOUT}s")
+    log.info(f"  File timeout:   {FILE_TIMEOUT}s")
+    log.info(f"  Global timeout: {ANALYSIS_TIMEOUT}s")
     log.info(f"  Max concurrent: {MAX_CONCURRENT}")
     log.info(f"  API Key set:    {'YES' if API_KEY != 'knowhow-default-dev-key-change-me' else 'NO (default dev key)'}")
     log.info(f"  Webhook:        ENABLED")
