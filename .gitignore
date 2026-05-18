@@ -27,6 +27,9 @@ ENV/
 *.weights
 *.pb
 *.tflite
+# Exception: keep LSTM model + token maps (required for AI verdict)
+!models/malware_lstm_model.pt
+!models/token_maps.json
 *.bin
 
 # ─────────────────────────────────────────────────────────────
