@@ -43,3 +43,4 @@ google-cloud-compute>=1.15.0   # GCP snapshot management
 # ─── Utilities ──────────────────────────────────────────────
 pydantic>=2.5.0                # Data validation (FastAPI models)
 python-dotenv>=1.0.0           # .env file loading
+pyinstaller>=6.0.0             # Build test malware .exe from Python scripts
