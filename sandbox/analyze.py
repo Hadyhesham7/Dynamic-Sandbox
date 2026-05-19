@@ -361,12 +361,59 @@ Examples:
         # (ws2_32, advapi32, etc. must be loaded BEFORE hook DLL injection)
         time.sleep(5)
 
+        # ── STEP 3.5: Find real process (PyInstaller child detection) ──
+        # PyInstaller --onefile spawns a CHILD process that runs the actual
+        # Python code. We must inject into the CHILD, not the bootloader.
+        inject_pid = target_pid
+        try:
+            import ctypes as _ct
+            from ctypes import wintypes as _wt
+            _k32 = _ct.windll.kernel32
+
+            class _PE32(_ct.Structure):
+                _fields_ = [('dwSize', _wt.DWORD), ('cntUsage', _wt.DWORD),
+                            ('th32ProcessID', _wt.DWORD),
+                            ('th32DefaultHeapID', _ct.c_void_p),
+                            ('th32ModuleID', _wt.DWORD),
+                            ('cntThreads', _wt.DWORD),
+                            ('th32ParentProcessID', _wt.DWORD),
+                            ('pcPriClassBase', _ct.c_long),
+                            ('dwFlags', _wt.DWORD),
+                            ('szExeFile', _ct.c_char * 260)]
+
+            _k32.CreateToolhelp32Snapshot.restype = _ct.c_void_p
+            snap = _k32.CreateToolhelp32Snapshot(0x00000002, 0)
+            pe = _PE32()
+            pe.dwSize = _ct.sizeof(_PE32)
+            children = []
+            if _k32.Process32First(snap, _ct.byref(pe)):
+                while True:
+                    if pe.th32ParentProcessID == target_pid:
+                        child_name = pe.szExeFile.decode('utf-8', errors='replace')
+                        child_pid = pe.th32ProcessID
+                        if child_name.lower() != 'conhost.exe':
+                            children.append((child_pid, child_name))
+                    if not _k32.Process32Next(snap, _ct.byref(pe)):
+                        break
+            _k32.CloseHandle(snap)
+
+            if children:
+                inject_pid = children[0][0]
+                print(f"[PIPELINE]   PyInstaller child detected: PID {inject_pid} ({children[0][1]})")
+                print(f"[PIPELINE]   Injecting into CHILD process (not bootloader PID {target_pid})")
+                # Give the child a moment to initialize
+                time.sleep(2)
+            else:
+                print(f"[PIPELINE]   No child process found — injecting into PID {target_pid}")
+        except Exception as e:
+            print(f"[PIPELINE]   Child detection failed ({e}) — using PID {target_pid}")
+
         # ── STEP 4: Inject DLL ──
-        print(f"[PIPELINE] Step 4: Injecting DLL...")
+        print(f"[PIPELINE] Step 4: Injecting DLL into PID {inject_pid}...")
         injector_script = os.path.join(SCRIPT_DIR, "injector", "injector.py")
 
         inject_proc = subprocess.Popen(
-            [sys.executable, injector_script, "--pid", str(target_pid)],
+            [sys.executable, injector_script, "--pid", str(inject_pid)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
