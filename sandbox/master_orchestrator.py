@@ -321,12 +321,14 @@ class MasterOrchestrator:
                                   handover_source=url_report.get("url", ""))
         else:
             print(f"[MASTER] WARNING: Downloaded payload not found on disk.")
-            self.report["handover"] = {
+            if not isinstance(self.report["handover"], list):
+                self.report["handover"] = []
+            self.report["handover"].append({
                 "triggered": True,
                 "reason": "executable_download",
                 "filename": dl_filename,
                 "status": "payload_not_found",
-            }
+            })
 
     def _locate_downloaded_payload(self, filename: str, sha256: str):
         """Search for the downloaded payload in known locations."""
@@ -566,22 +568,27 @@ class MasterOrchestrator:
                 )
 
         # ── Handover escalation ──
-        handover = self.report.get("handover") or {}
+        handover_list = self.report.get("handover") or []
+        if isinstance(handover_list, dict):
+            handover_list = [handover_list]  # Legacy compat
         handover_score = 0
-        if handover.get("status") == "completed":
-            h_result = handover.get("sandbox_result", {})
-            h_verdict = h_result.get("ai_verdict", {})
-            if h_verdict:
-                h_confidence = h_verdict.get("combined_confidence", 0)
-                h_label = h_verdict.get("verdict", "N/A")
-                if h_label.upper() in ("BENIGN", "CLEAN"):
-                    handover_score = max(0, 100 - h_confidence)
-                else:
-                    handover_score = h_confidence
-                verdict_signals.append(
-                    f"Downloaded payload: {h_label} "
-                    f"(confidence: {h_confidence}%, risk: {handover_score})"
-                )
+        for handover in handover_list:
+            if handover.get("status") == "completed":
+                h_result = handover.get("sandbox_result", {})
+                h_verdict = h_result.get("ai_verdict", {})
+                if h_verdict:
+                    h_confidence = h_verdict.get("combined_confidence", 0)
+                    h_label = h_verdict.get("verdict", "N/A")
+                    payload_name = handover.get("payload_file", "unknown")
+                    if h_label.upper() in ("BENIGN", "CLEAN"):
+                        score = max(0, 100 - h_confidence)
+                    else:
+                        score = h_confidence
+                    handover_score = max(handover_score, score)
+                    verdict_signals.append(
+                        f"Payload '{payload_name}': {h_label} "
+                        f"(confidence: {h_confidence}%, risk: {score})"
+                    )
 
         # ── Combined score ──
         if self.report["input_type"] == "URL":
