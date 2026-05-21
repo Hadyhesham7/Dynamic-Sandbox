@@ -397,13 +397,17 @@ Examples:
             )
         target_pid = target_proc.pid
         print(f"[PIPELINE]   PID: {target_pid}")
-        # Wait 5s for PyInstaller to unpack + bootstrap Python + load DLLs
-        # (ws2_32, advapi32, etc. must be loaded BEFORE hook DLL injection)
-        time.sleep(5)
 
-        # ── STEP 3.5: Find real process (PyInstaller child detection) ──
-        # PyInstaller --onefile spawns a CHILD process that runs the actual
-        # Python code. We must inject into the CHILD, not the bootloader.
+        # Wait for the target to initialize
+        # Office apps need more time than standalone PEs to fully load
+        if strategy == "OFFICE_DYNAMIC":
+            init_wait = 10
+            print(f"[PIPELINE]   Waiting {init_wait}s for Office to fully initialize...")
+        else:
+            init_wait = 5
+        time.sleep(init_wait)
+
+        # ── STEP 3.5: Find real process to inject ──
         inject_pid = target_pid
         try:
             import ctypes as _ct
@@ -426,18 +430,40 @@ Examples:
             pe = _PE32()
             pe.dwSize = _ct.sizeof(_PE32)
             children = []
+            office_procs = []  # Track all WINWORD/EXCEL processes
+
             if _k32.Process32First(snap, _ct.byref(pe)):
                 while True:
+                    proc_name = pe.szExeFile.decode('utf-8', errors='replace').lower()
+                    proc_pid = pe.th32ProcessID
+
+                    # For OFFICE_DYNAMIC: find the real Office process by name
+                    if strategy == "OFFICE_DYNAMIC":
+                        if proc_name in ('winword.exe', 'excel.exe', 'powerpnt.exe'):
+                            office_procs.append((proc_pid, proc_name))
+
+                    # For PE: find child processes (PyInstaller detection)
                     if pe.th32ParentProcessID == target_pid:
-                        child_name = pe.szExeFile.decode('utf-8', errors='replace')
-                        child_pid = pe.th32ProcessID
-                        if child_name.lower() != 'conhost.exe':
-                            children.append((child_pid, child_name))
+                        if proc_name != 'conhost.exe':
+                            children.append((proc_pid, proc_name))
+
                     if not _k32.Process32Next(snap, _ct.byref(pe)):
                         break
             _k32.CloseHandle(snap)
 
-            if children:
+            if strategy == "OFFICE_DYNAMIC" and office_procs:
+                # For Office: use the Office process (may differ from Popen PID)
+                # Prefer the process that matches our Popen PID, else use the latest one
+                matching = [p for p in office_procs if p[0] == target_pid]
+                if matching:
+                    inject_pid = matching[0][0]
+                    print(f"[PIPELINE]   Office process confirmed: PID {inject_pid} ({matching[0][1]})")
+                else:
+                    # Popen PID was a launcher — use the real Office process
+                    inject_pid = office_procs[-1][0]
+                    print(f"[PIPELINE]   Office broker detected! Real process: PID {inject_pid} ({office_procs[-1][1]})")
+                    print(f"[PIPELINE]   (Popen gave broker PID {target_pid}, actual Office PID {inject_pid})")
+            elif children:
                 inject_pid = children[0][0]
                 print(f"[PIPELINE]   PyInstaller child detected: PID {inject_pid} ({children[0][1]})")
                 print(f"[PIPELINE]   Injecting into CHILD process (not bootloader PID {target_pid})")
