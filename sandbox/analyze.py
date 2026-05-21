@@ -476,12 +476,22 @@ Examples:
         screenshot_monitor.start()
 
         # ── STEP 5: Wait for Execution ──
-        print(f"[PIPELINE] Step 5: Monitoring execution ({args.timeout}s timeout)...")
+        # Office apps never exit on their own — use a shorter window.
+        # Macros execute within seconds; 30s captures all dynamic behavior.
+        if strategy == "OFFICE_DYNAMIC":
+            exec_timeout = min(30, args.timeout)
+            print(f"[PIPELINE] Step 5: Office dynamic monitoring ({exec_timeout}s window)...")
+            print(f"[PIPELINE]   (Macros execute immediately; "
+                  f"Word will be terminated after {exec_timeout}s)")
+        else:
+            exec_timeout = args.timeout
+            print(f"[PIPELINE] Step 5: Monitoring execution ({exec_timeout}s timeout)...")
+
         try:
-            target_proc.wait(timeout=args.timeout)
+            target_proc.wait(timeout=exec_timeout)
             print(f"[PIPELINE]   Process exited (code: {target_proc.returncode})")
         except subprocess.TimeoutExpired:
-            print(f"[PIPELINE]   Timeout reached ({args.timeout}s) — terminating")
+            print(f"[PIPELINE]   Execution window reached ({exec_timeout}s) — terminating")
             target_proc.kill()
             target_proc.wait(timeout=5)
 
