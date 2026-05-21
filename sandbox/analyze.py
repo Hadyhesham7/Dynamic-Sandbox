@@ -538,6 +538,75 @@ Examples:
                 collector_proc.kill()
         time.sleep(1)
 
+        # ── STEP 6.5: Sanitize API Report ──
+        # The hook DLL can produce truncated JSON when the pipe disconnects
+        # mid-write (especially for large Office captures). Fix it now before
+        # any downstream monitor tries to parse it.
+        if os.path.exists(api_report_path):
+            try:
+                with open(api_report_path, 'r', encoding='utf-8', errors='replace') as f:
+                    raw = f.read()
+                try:
+                    report = json.loads(raw)
+                    # JSON is valid — check for corrupted entries in processes
+                    sanitized = False
+                    for proc in report.get("behavior", {}).get("processes", []):
+                        clean_calls = []
+                        for call in proc.get("calls", []):
+                            if isinstance(call, dict) and "api" in call:
+                                clean_calls.append(call)
+                            else:
+                                sanitized = True
+                        proc["calls"] = clean_calls
+                    if sanitized:
+                        with open(api_report_path, 'w') as f:
+                            json.dump(report, f, indent=2)
+                        print("[PIPELINE] Step 6.5: Sanitized corrupted API entries")
+                except json.JSONDecodeError as e:
+                    print(f"[PIPELINE] Step 6.5: API report has corrupted JSON — repairing...")
+                    print(f"[PIPELINE]   Error: {e}")
+                    # Try to salvage: find the last valid JSON closure
+                    # The report structure is {"info":{...},"behavior":{"processes":[...]}}
+                    # Try truncating at the last complete call entry
+                    last_good = raw.rfind('"time":')
+                    if last_good > 0:
+                        # Find the end of that entry (next "}")
+                        end_brace = raw.find('}', last_good)
+                        if end_brace > 0:
+                            truncated = raw[:end_brace + 1]
+                            # Close all open brackets
+                            truncated += ']}]}}'
+                            try:
+                                repaired = json.loads(truncated)
+                                with open(api_report_path, 'w') as f:
+                                    json.dump(repaired, f, indent=2)
+                                total_calls = sum(
+                                    len(p.get("calls", []))
+                                    for p in repaired.get("behavior", {}).get("processes", [])
+                                )
+                                print(f"[PIPELINE]   Repaired! Salvaged {total_calls} API calls")
+                            except json.JSONDecodeError:
+                                # Last resort: create empty valid report
+                                empty_report = {
+                                    "info": {"version": "sandbox-1.0", "total_calls": 0,
+                                             "note": "API report was corrupted and could not be repaired"},
+                                    "behavior": {"processes": []}
+                                }
+                                with open(api_report_path, 'w') as f:
+                                    json.dump(empty_report, f, indent=2)
+                                print("[PIPELINE]   Could not repair — saved empty report")
+                    else:
+                        empty_report = {
+                            "info": {"version": "sandbox-1.0", "total_calls": 0,
+                                     "note": "API report was corrupted"},
+                            "behavior": {"processes": []}
+                        }
+                        with open(api_report_path, 'w') as f:
+                            json.dump(empty_report, f, indent=2)
+                        print("[PIPELINE]   Could not repair — saved empty report")
+            except Exception as e:
+                print(f"[PIPELINE] Step 6.5: Sanitization error: {e}")
+
         # ── STEP 7: Post-Snapshots ──
         if fs_monitor:
             print("[PIPELINE] Step 7a: File system post-snapshot + diff...")

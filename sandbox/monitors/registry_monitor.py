@@ -78,6 +78,11 @@ class RegistryMonitor:
         (winreg.HKEY_CURRENT_USER,
          r"Software\SandboxTest",
          "HKCU\\Software\\SandboxTest"),
+
+        # Macro malware config key (for macro test docs)
+        (winreg.HKEY_CURRENT_USER,
+         r"Software\MacroMalwareConfig",
+         "HKCU\\Software\\MacroMalwareConfig"),
     ]
 
     # Keys that indicate persistence behavior

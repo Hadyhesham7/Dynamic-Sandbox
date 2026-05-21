@@ -636,18 +636,20 @@ async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
             r"Software\SandboxTest",
             r"Software\MalwareTestConfig",
             r"Software\MalwareTestService",
+            r"Software\MacroMalwareConfig",
         ]:
             if _delete_reg_tree(winreg.HKEY_CURRENT_USER, tree_path):
                 reg_cleaned += 1
 
         # Delete hardcoded persistence VALUES from Run/RunOnce
         run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
-        for val in ["SandboxTestPersistence", "MalwareTestPersistence"]:
+        for val in ["SandboxTestPersistence", "MalwareTestPersistence",
+                     "MacroTestPersistence"]:
             if _delete_reg_value(run_key, val):
                 reg_cleaned += 1
 
         runonce_key = r"Software\Microsoft\Windows\CurrentVersion\RunOnce"
-        for val in ["MalwareTestRunOnce"]:
+        for val in ["MalwareTestRunOnce", "MacroTestRunOnce"]:
             if _delete_reg_value(runonce_key, val):
                 reg_cleaned += 1
 
