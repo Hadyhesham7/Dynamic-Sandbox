@@ -343,6 +343,46 @@ Examples:
             # Office mode: launch app with document as argument
             print(f"[PIPELINE] Step 3: Launching {os.path.basename(target_exe)} "
                   f"with {os.path.basename(str(target_args[-1]))}...")
+
+            # ── STEP 3.0: Disable Office Protected View & Enable Macros ──
+            # Without this, Word/Excel will block macro execution silently.
+            if strategy == "OFFICE_DYNAMIC":
+                try:
+                    import winreg
+                    # Detect Office version from target_exe path
+                    office_version = "16.0"  # Default (Office 2016/2019/365)
+                    for ver in ["16.0", "15.0", "14.0"]:
+                        if f"Office{ver.split('.')[0]}" in target_exe or ver in target_exe:
+                            office_version = ver
+                            break
+
+                    app_name = "Word" if "WINWORD" in target_exe.upper() else "Excel"
+
+                    # 1. Disable Protected View (3 settings)
+                    pv_key_path = rf"Software\Microsoft\Office\{office_version}\{app_name}\Security\ProtectedView"
+                    pv_key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, pv_key_path)
+                    winreg.SetValueEx(pv_key, "DisableInternetFilesInPV", 0, winreg.REG_DWORD, 1)
+                    winreg.SetValueEx(pv_key, "DisableAttachementsInPV", 0, winreg.REG_DWORD, 1)
+                    winreg.SetValueEx(pv_key, "DisableUnsafeLocationsInPV", 0, winreg.REG_DWORD, 1)
+                    winreg.CloseKey(pv_key)
+
+                    # 2. Enable all macros (VBAWarnings = 1 means "Enable All Macros")
+                    sec_key_path = rf"Software\Microsoft\Office\{office_version}\{app_name}\Security"
+                    sec_key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, sec_key_path)
+                    winreg.SetValueEx(sec_key, "VBAWarnings", 0, winreg.REG_DWORD, 1)
+                    winreg.CloseKey(sec_key)
+
+                    # 3. Disable Trust Center first-run dialogs
+                    resiliency_path = rf"Software\Microsoft\Office\{office_version}\{app_name}\Resiliency"
+                    res_key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, resiliency_path)
+                    winreg.SetValueEx(res_key, "StartupItems", 0, winreg.REG_DWORD, 0)
+                    winreg.CloseKey(res_key)
+
+                    print(f"[PIPELINE]   Office macro security DISABLED for {app_name} {office_version}")
+                    print(f"[PIPELINE]   Protected View: OFF | VBA Macros: ENABLED")
+                except Exception as e:
+                    print(f"[PIPELINE]   WARNING: Could not configure Office security: {e}")
+
             launch_cmd = [target_exe] + target_args
             target_proc = subprocess.Popen(
                 launch_cmd,
