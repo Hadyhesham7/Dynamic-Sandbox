@@ -108,7 +108,7 @@ class MasterOrchestrator:
             "subsystem_a": None,      # File Sandbox results
             "subsystem_b": None,      # URL Pipeline results (list)
             "email_extraction": None,  # Email metadata
-            "handover": None,          # Convergence 1: download → sandbox
+            "handover": [],            # Convergence 1: download/email attachment → sandbox (list)
             "overwatch": None,         # Convergence 2: browser hooking
             "unified_verdict": {},
         }
@@ -185,15 +185,21 @@ class MasterOrchestrator:
             self._run_url_pipeline(urls)
 
         # ── Route extracted attachments to Subsystem A ──
+        # Route by extension OR by detected binary magic bytes (PE/OLE/ZIP)
         attachments = extraction.get("attachments", [])
-        dangerous_atts = [a for a in attachments if a.get("is_dangerous")]
+        sandboxable_atts = [
+            a for a in attachments
+            if a.get("is_dangerous")
+            or a.get("detected_type") in ("PE_EXECUTABLE", "OLE_DOCUMENT", "ZIP_ARCHIVE")
+        ]
 
-        if dangerous_atts:
-            print(f"[MASTER] Found {len(dangerous_atts)} dangerous attachment(s)")
-            for att in dangerous_atts:
+        if sandboxable_atts:
+            print(f"[MASTER] Found {len(sandboxable_atts)} sandboxable attachment(s)")
+            for att in sandboxable_atts:
                 save_path = att.get("save_path", "")
                 if save_path and os.path.isfile(save_path):
-                    print(f"[MASTER] Routing attachment to Subsystem A: {att['filename']}")
+                    reason = att.get('detected_type', att.get('extension', 'unknown'))
+                    print(f"[MASTER] Routing attachment to Subsystem A: {att['filename']} ({reason})")
                     self._run_file_sandbox(save_path, is_handover=True,
                                           handover_source="email_attachment")
                 else:
@@ -384,12 +390,14 @@ class MasterOrchestrator:
                 "file": os.path.basename(filepath),
             }
             if is_handover:
-                self.report["handover"] = {
+                if not isinstance(self.report["handover"], list):
+                    self.report["handover"] = []
+                self.report["handover"].append({
                     "triggered": True,
                     "status": "skipped_no_admin",
                     "source": handover_source,
                     "reason": "Elevation required",
-                }
+                })
             else:
                 self.report["subsystem_a"] = result
             return
@@ -433,13 +441,15 @@ class MasterOrchestrator:
 
         # Store results
         if is_handover:
-            self.report["handover"] = {
+            if not isinstance(self.report["handover"], list):
+                self.report["handover"] = []
+            self.report["handover"].append({
                 "triggered": True,
                 "status": "completed",
                 "source": handover_source,
                 "payload_file": os.path.basename(filepath),
                 "sandbox_result": sandbox_result,
-            }
+            })
         else:
             self.report["subsystem_a"] = sandbox_result
 
