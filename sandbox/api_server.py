@@ -594,7 +594,44 @@ async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
             except Exception:
                 return False
 
-        # Delete registry TREES (keys with subkeys)
+        # ── Dynamic Registry Rollback ──
+        reg_report_path = SCRIPT_DIR / "reports" / "raw" / "registry_activity.json"
+        if reg_report_path.exists():
+            try:
+                import json
+                with open(reg_report_path, "r") as f:
+                    reg_data = json.load(f).get("data", {})
+                
+                # Delete dynamically created keys
+                for key_path in reg_data.get("keys_created", []):
+                    parts = key_path.split("\\", 1)
+                    if len(parts) == 2:
+                        hive_str, subpath = parts
+                        hive = winreg.HKEY_LOCAL_MACHINE if hive_str.upper() == "HKLM" else winreg.HKEY_CURRENT_USER
+                        if _delete_reg_tree(hive, subpath):
+                            reg_cleaned += 1
+                            log.info(f"[CLEANUP] Dynamically deleted key: {key_path}")
+                
+                # Delete dynamically set values
+                for val in reg_data.get("values_set", []):
+                    key_path = val.get("key", "")
+                    val_name = val.get("name", "")
+                    parts = key_path.split("\\", 1)
+                    if len(parts) == 2:
+                        hive_str, subpath = parts
+                        hive = winreg.HKEY_LOCAL_MACHINE if hive_str.upper() == "HKLM" else winreg.HKEY_CURRENT_USER
+                        try:
+                            k = winreg.OpenKey(hive, subpath, 0, winreg.KEY_SET_VALUE)
+                            winreg.DeleteValue(k, val_name)
+                            winreg.CloseKey(k)
+                            reg_cleaned += 1
+                            log.info(f"[CLEANUP] Dynamically deleted value: {key_path}\\{val_name}")
+                        except Exception:
+                            pass
+            except Exception as e:
+                log.warning(f"[CLEANUP] Dynamic registry rollback failed: {e}")
+
+        # Delete hardcoded test registry TREES (keys with subkeys)
         for tree_path in [
             r"Software\SandboxTest",
             r"Software\MalwareTestConfig",
@@ -603,7 +640,7 @@ async def cleanup_sandbox(_auth=Depends(_verify_api_key)):
             if _delete_reg_tree(winreg.HKEY_CURRENT_USER, tree_path):
                 reg_cleaned += 1
 
-        # Delete persistence VALUES from Run/RunOnce
+        # Delete hardcoded persistence VALUES from Run/RunOnce
         run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
         for val in ["SandboxTestPersistence", "MalwareTestPersistence"]:
             if _delete_reg_value(run_key, val):
