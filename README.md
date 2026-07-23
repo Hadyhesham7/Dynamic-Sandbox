@@ -37,6 +37,7 @@ Located in the `/models/` directory, the AI engine processes the raw API traces.
 ├── pre_snapshot_cleanup.ps1    # PowerShell script to sanitize VM state before GCP snapshot
 ├── requirements.txt            # Python dependencies (PyInstaller, torch, playwright, etc.)
 └── summary_URL_Chat.md         # Documentation on dynamic URL analysis and DOM tracking
+```
 🚀 Key Features
 Absolute Isolation via GCP Revert: Utilizing Google Cloud SDKs, the gateway_client.py triggers an instantaneous VM snapshot reversion immediately after payload detonation, ensuring a pristine environment for the next scan.
 Dual Reporting System: Generates both highly technical JSON telemetry for system parsing and human-readable threat reports for the admin dashboard.
