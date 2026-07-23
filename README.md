@@ -5,12 +5,12 @@
 ![Architecture](https://img.shields.io/badge/architecture-Microservice-purple)
 ![Platform](https://img.shields.io/badge/platform-GCP%20%7C%20Windows%20Server-orange)
 
-## 📖 Overview
+##  Overview
 The **Dynamic Behavioral Sandbox** serves as the ultimate fail-safe layer in the Email Protection Gateway (EPG) pipeline. It is a custom-engineered, agentless detonation environment designed to analyze zero-day malware, evasive Office Macros (VBA), and polymorphic threats that successfully bypass static signature detection.
 
 Hosted on Google Cloud Platform (GCP), this microservice detonates suspicious email attachments and URLs in a highly controlled, isolated Windows environment. By tracking sequential execution anomalies at the OS level, it identifies malicious intent before neutralizing the threat and instantly reverting the cloud infrastructure.
 
-## 🏗️ Architecture & Core Components
+##  Architecture & Core Components
 
 This repository contains the source code for the sandbox orchestration, telemetry collection, and ML-based behavioral analysis.
 
@@ -27,7 +27,7 @@ Located in the `/models/` directory, the AI engine processes the raw API traces.
 ### 3. Automated URL Analysis
 *   **Playwright Engine:** Dynamically analyzes embedded email URLs using a headless browser. It tracks redirection chains, inspects DOM elements for phishing patterns, and executes obfuscated JavaScript safely.
 
-## 📂 Repository Structure
+##  Repository Structure
 
 ```text
 ├── models/                     # LSTM model, token maps, and PyTorch dependencies
@@ -49,6 +49,16 @@ Prerequisites
 Google Cloud Platform (GCP) account with Compute Engine API enabled.
 Windows Server 2022 Base Image.
 Python 3.13 installed on the guest VM.
+
+## Performance Metrics
+API Hooks Monitored: 89
+LSTM Inference Accuracy: ~94%
+Average Detonation Time: < 45 seconds (including VM revert)
+Target Scope: PE (Executables), PDF, Office Documents (DOCX/XLSM), and URLs.
+
+## License & Academic Context
+This module is a core subsystem of the Email Protection Gateway (EPG), developed as a Graduation Project for the Faculty of Computers and Information Technology (Cybersecurity) at Future University in Egypt (FUE), 2025-2026.
+
 
 
 
