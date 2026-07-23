@@ -38,36 +38,17 @@ Located in the `/models/` directory, the AI engine processes the raw API traces.
 ├── requirements.txt            # Python dependencies (PyInstaller, torch, playwright, etc.)
 └── summary_URL_Chat.md         # Documentation on dynamic URL analysis and DOM tracking
 ```
-🚀 Key Features
+## Key Features
 Absolute Isolation via GCP Revert: Utilizing Google Cloud SDKs, the gateway_client.py triggers an instantaneous VM snapshot reversion immediately after payload detonation, ensuring a pristine environment for the next scan.
 Dual Reporting System: Generates both highly technical JSON telemetry for system parsing and human-readable threat reports for the admin dashboard.
 Asynchronous Webhooks: Operates non-blockingly. Once detonation and analysis are complete, the sandbox fires a webhook back to the EPG Orchestrator with the final verdict (CLEAN or MALICIOUS).
 Evasion Resistance: Successfully bypasses standard macro evasion techniques and delayed-execution loops.
-🛠️ Setup & Deployment
+
+## Setup & Deployment
 Prerequisites
 Google Cloud Platform (GCP) account with Compute Engine API enabled.
 Windows Server 2022 Base Image.
 Python 3.13 installed on the guest VM.
-Installation
-Prepare the Golden Image: Run the cleanup script to sanitize the Windows environment before taking the base snapshot:
-powershell
 
 
-.\pre_snapshot_cleanup.ps1
-Install Dependencies:
-bash
 
-
-pip install -r requirements.txt
-Initialize the Sandbox Listener:
-bash
-
-
-python gateway_client.py --mode listen --port 8000
-📊 Performance Metrics
-API Hooks Monitored: 89
-LSTM Inference Accuracy: ~94%
-Average Detonation Time: < 45 seconds (including VM revert)
-Target Scope: PE (Executables), PDF, Office Documents (DOCX/XLSM), and URLs.
-🛡️ License & Academic Context
-This module is a core subsystem of the Email Protection Gateway (EPG), developed as a Graduation Project for the Faculty of Computers and Information Technology (Cybersecurity) at Future University in Egypt (FUE), 2025-2026.
